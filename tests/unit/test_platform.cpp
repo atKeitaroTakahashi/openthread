@@ -28,17 +28,7 @@
 
 #include "test_platform.h"
 
-#if _WIN32
-__forceinline int gettimeofday(struct timeval *tv, struct timezone *)
-{
-    DWORD tick  = GetTickCount();
-    tv->tv_sec  = (long)(tick / 1000);
-    tv->tv_usec = (long)(tick * 1000);
-    return 0;
-}
-#else
 #include <sys/time.h>
-#endif
 
 bool                 g_testPlatAlarmSet     = false;
 uint32_t             g_testPlatAlarmNext    = 0;
@@ -408,16 +398,7 @@ int8_t otPlatRadioGetReceiveSensitivity(otInstance *aInstance)
 // Random
 //
 
-uint32_t otPlatRandomGet(void)
-{
-#if _WIN32
-    return (uint32_t)rand();
-#else
-    return (uint32_t)random();
-#endif
-}
-
-otError otPlatRandomGetTrue(uint8_t *aOutput, uint16_t aOutputLength)
+otError otPlatEntropyGet(uint8_t *aOutput, uint16_t aOutputLength)
 {
     otError error = OT_ERROR_NONE;
 
@@ -425,7 +406,7 @@ otError otPlatRandomGetTrue(uint8_t *aOutput, uint16_t aOutputLength)
 
     for (uint16_t length = 0; length < aOutputLength; length++)
     {
-        aOutput[length] = (uint8_t)otPlatRandomGet();
+        aOutput[length] = (uint8_t)rand();
     }
 
 exit:
@@ -506,25 +487,9 @@ void otPlatSettingsInit(otInstance *aInstance)
     OT_UNUSED_VARIABLE(aInstance);
 }
 
-otError otPlatSettingsBeginChange(otInstance *aInstance)
+void otPlatSettingsDeinit(otInstance *aInstance)
 {
     OT_UNUSED_VARIABLE(aInstance);
-
-    return OT_ERROR_NONE;
-}
-
-otError otPlatSettingsCommitChange(otInstance *aInstance)
-{
-    OT_UNUSED_VARIABLE(aInstance);
-
-    return OT_ERROR_NONE;
-}
-
-otError otPlatSettingsAbandonChange(otInstance *aInstance)
-{
-    OT_UNUSED_VARIABLE(aInstance);
-
-    return OT_ERROR_NONE;
 }
 
 otError otPlatSettingsGet(otInstance *aInstance, uint16_t aKey, int aIndex, uint8_t *aValue, uint16_t *aValueLength)

@@ -31,8 +31,6 @@
  *   This file implements MAC Channel Mask.
  */
 
-#define WPP_NAME "mac-channel-mask.tmh"
-
 #include "channel_mask.hpp"
 
 #include "common/code_utils.hpp"
@@ -82,7 +80,7 @@ uint8_t ChannelMask::ChooseRandomChannel(void) const
 
     VerifyOrExit(!IsEmpty());
 
-    randomIndex = Random::GetUint8InRange(0, GetNumberOfChannels());
+    randomIndex = Random::NonCrypto::GetUint8InRange(0, GetNumberOfChannels());
 
     SuccessOrExit(GetNextChannel(channel));
 

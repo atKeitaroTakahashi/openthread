@@ -31,8 +31,6 @@
  *   This file implements MLE functionality required for the Thread Child, Router and Leader roles.
  */
 
-#define WPP_NAME "mle.tmh"
-
 #include "mle.hpp"
 
 #include <openthread/platform/radio.h>
@@ -168,8 +166,8 @@ Mle::Mle(Instance &aInstance)
     meshLocalPrefix.m8[7] = 0x00;
 
     // mesh-local 64
-    Random::FillBuffer(mMeshLocal64.GetAddress().mFields.m8 + OT_IP6_PREFIX_SIZE,
-                       OT_IP6_ADDRESS_SIZE - OT_IP6_PREFIX_SIZE);
+    Random::NonCrypto::FillBuffer(mMeshLocal64.GetAddress().mFields.m8 + OT_IP6_PREFIX_SIZE,
+                                  OT_IP6_ADDRESS_SIZE - OT_IP6_PREFIX_SIZE);
 
     mMeshLocal64.mPrefixLength       = 64;
     mMeshLocal64.mPreferred          = true;
@@ -442,8 +440,10 @@ otError Mle::Store(void)
 
     if (IsAttached())
     {
-        // only update network information while we are attached to avoid losing information when a reboot occurs after
-        // a message is sent but before attaching
+        // Only update network information while we are attached to
+        // avoid losing/overwriting previous information when a reboot
+        // occurs after a message is sent but before attaching.
+
         networkInfo.mDeviceMode          = mDeviceMode;
         networkInfo.mRole                = mRole;
         networkInfo.mRloc16              = GetRloc16();
@@ -463,11 +463,17 @@ otError Mle::Store(void)
     }
     else
     {
-        // when not attached, read out any existing values so that we do not change them
-        IgnoreReturnValue(Get<Settings>().ReadNetworkInfo(networkInfo));
+        // When not attached, read out any previous saved `NetworkInfo`.
+        // If there is none, it indicates that device was never attached
+        // before. In that case, no need to save any info (note that on
+        // a device reset the MLE/MAC frame counters would reset but
+        // device also starts with a new randomly generated extended
+        // address. If there is a previously saved `NetworkInfo`, we
+        // just update the key sequence and MAC and MLE frame counters.
+
+        SuccessOrExit(Get<Settings>().ReadNetworkInfo(networkInfo));
     }
 
-    // update MAC and MLE Frame Counters even when we are not attached MLE messages are sent before a device attached
     networkInfo.mKeySequence     = Get<KeyManager>().GetCurrentKeySequence();
     networkInfo.mMleFrameCounter = Get<KeyManager>().GetMleFrameCounter() + OPENTHREAD_CONFIG_STORE_FRAME_COUNTER_AHEAD;
     networkInfo.mMacFrameCounter = Get<KeyManager>().GetMacFrameCounter() + OPENTHREAD_CONFIG_STORE_FRAME_COUNTER_AHEAD;
@@ -669,7 +675,7 @@ uint32_t Mle::GetAttachStartDelay(void) const
 
     if (mAttachCounter == 0)
     {
-        delay = 1 + Random::GetUint32InRange(0, kParentRequestRouterTimeout);
+        delay = 1 + Random::NonCrypto::GetUint32InRange(0, kParentRequestRouterTimeout);
         ExitNow();
     }
 #if OPENTHREAD_CONFIG_ENABLE_ATTACH_BACKOFF
@@ -685,12 +691,12 @@ uint32_t Mle::GetAttachStartDelay(void) const
         }
         else
         {
-            delay = Random::AddJitter(kAttachBackoffMaxInterval, kAttachBackoffJitter);
+            delay = Random::NonCrypto::AddJitter(kAttachBackoffMaxInterval, kAttachBackoffJitter);
         }
     }
 #endif // OPENTHREAD_CONFIG_ENABLE_ATTACH_BACKOFF
 
-    jitter = Random::GetUint32InRange(0, kAttachStartJitter);
+    jitter = Random::NonCrypto::GetUint32InRange(0, kAttachStartJitter);
 
     if (jitter + delay > delay) // check for overflow
     {
@@ -800,7 +806,7 @@ void Mle::SetTimeout(uint32_t aTimeout)
 
     mTimeout = aTimeout;
 
-    Get<DataPollManager>().RecalculatePollPeriod();
+    Get<DataPollSender>().RecalculatePollPeriod();
 
     if (mRole == OT_DEVICE_ROLE_CHILD)
     {
@@ -1303,6 +1309,37 @@ otError Mle::AppendVersion(Message &aMessage)
     return aMessage.AppendTlv(tlv);
 }
 
+bool Mle::HasUnregisteredAddress(void)
+{
+    bool retval = false;
+
+    // Checks whether there are any addresses in addition to the mesh-local
+    // address that need to be registered.
+
+    for (const Ip6::NetifUnicastAddress *addr = Get<ThreadNetif>().GetUnicastAddresses(); addr; addr = addr->GetNext())
+    {
+        if (!addr->GetAddress().IsLinkLocal() && !IsRoutingLocator(addr->GetAddress()) &&
+            !IsAnycastLocator(addr->GetAddress()) && addr->GetAddress() != GetMeshLocal64())
+        {
+            ExitNow(retval = true);
+        }
+    }
+
+    if (!IsRxOnWhenIdle())
+    {
+        uint8_t      iterator = 0;
+        Ip6::Address address;
+
+        // For sleepy end-device, we register any external multicast
+        // addresses.
+
+        retval = (Get<ThreadNetif>().GetNextExternalMulticast(iterator, address) == OT_ERROR_NONE);
+    }
+
+exit:
+    return retval;
+}
+
 otError Mle::AppendAddressRegistration(Message &aMessage, AddressRegistrationMode aMode)
 {
     otError                  error = OT_ERROR_NONE;
@@ -1482,8 +1519,8 @@ void Mle::HandleStateChanged(otChangedFlags aFlags)
         if (!Get<ThreadNetif>().IsUnicastAddress(mMeshLocal64.GetAddress()))
         {
             // Mesh Local EID was removed, choose a new one and add it back
-            Random::FillBuffer(mMeshLocal64.GetAddress().mFields.m8 + OT_IP6_PREFIX_SIZE,
-                               OT_IP6_ADDRESS_SIZE - OT_IP6_PREFIX_SIZE);
+            Random::NonCrypto::FillBuffer(mMeshLocal64.GetAddress().mFields.m8 + OT_IP6_PREFIX_SIZE,
+                                          OT_IP6_ADDRESS_SIZE - OT_IP6_PREFIX_SIZE);
 
             Get<ThreadNetif>().AddUnicastAddress(mMeshLocal64);
             Get<Notifier>().Signal(OT_CHANGED_THREAD_ML_ADDR);
@@ -1627,6 +1664,15 @@ void Mle::HandleAttachTimer(void)
     if (mAttachState == kAttachStateParentRequestRouter || mAttachState == kAttachStateParentRequestReed ||
         mAttachState == kAttachStateAnnounce)
     {
+        uint8_t linkQuality;
+
+        linkQuality = mParentCandidate.GetLinkInfo().GetLinkQuality();
+
+        if (linkQuality > mParentCandidate.GetLinkQualityOut())
+        {
+            linkQuality = mParentCandidate.GetLinkQualityOut();
+        }
+
         // If already attached, accept the parent candidate if
         // we are trying to attach to a better partition or if a
         // Parent Response was also received from the current parent
@@ -1638,7 +1684,7 @@ void Mle::HandleAttachTimer(void)
         // the candidate and forward to REED stage to find a better
         // parent.
 
-        if ((mParentCandidate.GetLinkInfo().GetLinkQuality() == 3 || mAttachState != kAttachStateParentRequestRouter) &&
+        if ((linkQuality == 3 || mAttachState != kAttachStateParentRequestRouter) &&
             mParentCandidate.GetState() == Neighbor::kStateParentResponse &&
             (mRole != OT_DEVICE_ROLE_CHILD || mReceivedResponseFromParent || mParentRequestMode == kAttachBetter) &&
             SendChildIdRequest() == OT_ERROR_NONE)
@@ -1777,7 +1823,7 @@ uint32_t Mle::Reattach(void)
             Get<MeshCoP::PendingDataset>().ApplyConfiguration();
             mReattachState = kReattachPending;
             SetAttachState(kAttachStateStart);
-            delay = 1 + Random::GetUint32InRange(0, kAttachStartJitter);
+            delay = 1 + Random::NonCrypto::GetUint32InRange(0, kAttachStartJitter);
         }
         else
         {
@@ -1816,7 +1862,7 @@ uint32_t Mle::Reattach(void)
         else if (!IsRxOnWhenIdle())
         {
             // return to sleepy operation
-            Get<DataPollManager>().SetAttachMode(false);
+            Get<DataPollSender>().SetAttachMode(false);
             Get<MeshForwarder>().SetRxOnWhenIdle(false);
         }
 
@@ -1884,7 +1930,7 @@ void Mle::HandleDelayedResponseTimer(void)
                 // for Rx-Off-when-idle device.
                 if (!IsRxOnWhenIdle())
                 {
-                    Get<DataPollManager>().SendFastPolls(DataPollManager::kDefaultFastPolls);
+                    Get<DataPollSender>().SendFastPolls(DataPollSender::kDefaultFastPolls);
                 }
             }
             else
@@ -1932,7 +1978,7 @@ otError Mle::SendParentRequest(ParentRequestType aType)
     uint8_t      scanMask = 0;
     Ip6::Address destination;
 
-    Random::FillBuffer(mParentRequest.mChallenge, sizeof(mParentRequest.mChallenge));
+    Random::NonCrypto::FillBuffer(mParentRequest.mChallenge, sizeof(mParentRequest.mChallenge));
 
     switch (aType)
     {
@@ -2056,7 +2102,7 @@ otError Mle::SendChildIdRequest(void)
 
     if (!IsRxOnWhenIdle())
     {
-        Get<DataPollManager>().SetAttachMode(true);
+        Get<DataPollSender>().SetAttachMode(true);
         Get<MeshForwarder>().SetRxOnWhenIdle(false);
     }
 
@@ -2096,7 +2142,7 @@ otError Mle::SendDataRequest(const Ip6::Address &aDestination,
 
         if (!IsRxOnWhenIdle())
         {
-            Get<DataPollManager>().SendFastPolls(DataPollManager::kDefaultFastPolls);
+            Get<DataPollSender>().SendFastPolls(DataPollSender::kDefaultFastPolls);
         }
     }
 
@@ -2259,7 +2305,7 @@ otError Mle::SendChildUpdateRequest(void)
     switch (mRole)
     {
     case OT_DEVICE_ROLE_DETACHED:
-        Random::FillBuffer(mParentRequest.mChallenge, sizeof(mParentRequest.mChallenge));
+        Random::NonCrypto::FillBuffer(mParentRequest.mChallenge, sizeof(mParentRequest.mChallenge));
         SuccessOrExit(error = AppendChallenge(*message, mParentRequest.mChallenge, sizeof(mParentRequest.mChallenge)));
         break;
 
@@ -2285,7 +2331,7 @@ otError Mle::SendChildUpdateRequest(void)
 
     if (!IsRxOnWhenIdle())
     {
-        Get<DataPollManager>().SetAttachMode(true);
+        Get<DataPollSender>().SetAttachMode(true);
         Get<MeshForwarder>().SetRxOnWhenIdle(false);
     }
     else
@@ -2308,6 +2354,7 @@ otError Mle::SendChildUpdateResponse(const uint8_t *aTlvs, uint8_t aNumTlvs, con
     otError      error = OT_ERROR_NONE;
     Ip6::Address destination;
     Message *    message;
+    bool         checkAddress = false;
 
     VerifyOrExit((message = NewMleMessage()) != NULL, error = OT_ERROR_NO_BUFS);
     SuccessOrExit(error = AppendHeader(*message, Header::kCommandChildUpdateResponse));
@@ -2325,13 +2372,19 @@ otError Mle::SendChildUpdateResponse(const uint8_t *aTlvs, uint8_t aNumTlvs, con
         case Tlv::kAddressRegistration:
             if (!IsFullThreadDevice())
             {
-                SuccessOrExit(error = AppendAddressRegistration(*message));
+                // We only register the mesh-local address in the "Child
+                // Update Response" message and if there are additional
+                // addresses to register we follow up with a "Child Update
+                // Request".
+
+                SuccessOrExit(error = AppendAddressRegistration(*message, kAppendMeshLocalOnly));
+                checkAddress = true;
             }
 
             break;
 
         case Tlv::kResponse:
-            SuccessOrExit(error = AppendResponse(*message, aChallenge.GetChallenge(), aChallenge.GetLength()));
+            SuccessOrExit(error = AppendResponse(*message, aChallenge.GetChallenge(), aChallenge.GetChallengeLength()));
             break;
 
         case Tlv::kLinkFrameCounter:
@@ -2350,6 +2403,11 @@ otError Mle::SendChildUpdateResponse(const uint8_t *aTlvs, uint8_t aNumTlvs, con
     SuccessOrExit(error = SendMessage(*message, destination));
 
     LogMleMessage("Send Child Update Response to parent", destination);
+
+    if (checkAddress && HasUnregisteredAddress())
+    {
+        SendChildUpdateRequest();
+    }
 
 exit:
 
@@ -2496,7 +2554,6 @@ otError Mle::SendMessage(Message &aMessage, const Ip6::Address &aDestination)
     messageInfo.SetPeerAddr(aDestination);
     messageInfo.SetSockAddr(mLinkLocal64.GetAddress());
     messageInfo.SetPeerPort(kUdpPort);
-    messageInfo.SetInterfaceId(Get<ThreadNetif>().GetInterfaceId());
     messageInfo.SetHopLimit(kMleHopLimit);
 
     SuccessOrExit(error = mSocket.SendTo(aMessage, messageInfo));
@@ -2880,7 +2937,7 @@ otError Mle::HandleAdvertisement(const Message &aMessage, const Ip6::MessageInfo
         if (mRetrieveNewNetworkData ||
             (static_cast<int8_t>(leaderData.GetDataVersion() - Get<NetworkData::Leader>().GetVersion()) > 0))
         {
-            delay = Random::GetUint16InRange(0, kMleMaxResponseDelay);
+            delay = Random::NonCrypto::GetUint16InRange(0, kMleMaxResponseDelay);
             SendDataRequest(aMessageInfo.GetPeerAddr(), tlvs, sizeof(tlvs), delay);
         }
     }
@@ -2909,7 +2966,7 @@ otError Mle::HandleDataResponse(const Message &aMessage, const Ip6::MessageInfo 
         // running out the specified number. E.g. other component also trigger fast poll, and
         // is waiting for response; or the corner case where multiple Mle Data Request attempts
         // happened due to the retransmission mechanism.
-        IgnoreReturnValue(Get<DataPollManager>().StopFastPolls());
+        IgnoreReturnValue(Get<DataPollSender>().StopFastPolls());
     }
 
     return error;
@@ -3048,7 +3105,7 @@ exit:
 
         if (aMessageInfo.GetSockAddr().IsMulticast())
         {
-            delay = Random::GetUint16InRange(0, kMleMaxResponseDelay);
+            delay = Random::NonCrypto::GetUint16InRange(0, kMleMaxResponseDelay);
         }
         else
         {
@@ -3155,7 +3212,7 @@ otError Mle::HandleParentResponse(const Message &aMessage, const Ip6::MessageInf
     // Response
     SuccessOrExit(error = Tlv::GetTlv(aMessage, Tlv::kResponse, sizeof(response), response));
     VerifyOrExit(response.IsValid() &&
-                     memcmp(response.GetResponse(), mParentRequest.mChallenge, response.GetLength()) == 0,
+                     memcmp(response.GetResponse(), mParentRequest.mChallenge, response.GetResponseLength()) == 0,
                  error = OT_ERROR_PARSE);
 
     aMessageInfo.GetPeerAddr().ToExtAddress(extAddress);
@@ -3291,8 +3348,8 @@ otError Mle::HandleParentResponse(const Message &aMessage, const Ip6::MessageInf
     // Challenge
     SuccessOrExit(error = Tlv::GetTlv(aMessage, Tlv::kChallenge, sizeof(challenge), challenge));
     VerifyOrExit(challenge.IsValid(), error = OT_ERROR_PARSE);
-    memcpy(mChildIdRequest.mChallenge, challenge.GetChallenge(), challenge.GetLength());
-    mChildIdRequest.mChallengeLength = challenge.GetLength();
+    mChildIdRequest.mChallengeLength = challenge.GetChallengeLength();
+    memcpy(mChildIdRequest.mChallenge, challenge.GetChallenge(), mChildIdRequest.mChallengeLength);
 
     mParentCandidate.SetExtAddress(extAddress);
     mParentCandidate.SetRloc16(sourceAddress.GetRloc16());
@@ -3413,7 +3470,7 @@ otError Mle::HandleChildIdResponse(const Message &aMessage, const Ip6::MessageIn
 
     if (!IsRxOnWhenIdle())
     {
-        Get<DataPollManager>().SetAttachMode(false);
+        Get<DataPollSender>().SetAttachMode(false);
         Get<MeshForwarder>().SetRxOnWhenIdle(false);
     }
     else
@@ -3597,7 +3654,7 @@ otError Mle::HandleChildUpdateResponse(const Message &aMessage, const Ip6::Messa
 
         if (!IsRxOnWhenIdle())
         {
-            Get<DataPollManager>().SetAttachMode(false);
+            Get<DataPollSender>().SetAttachMode(false);
             Get<MeshForwarder>().SetRxOnWhenIdle(false);
         }
         else
@@ -3770,9 +3827,8 @@ otError Mle::HandleDiscoveryResponse(const Message &aMessage, const Ip6::Message
 
         case MeshCoP::Tlv::kNetworkName:
             aMessage.Read(offset, sizeof(networkName), &networkName);
-            VerifyOrExit(networkName.IsValid(), error = OT_ERROR_PARSE);
-            memcpy(&result.mNetworkName, networkName.GetNetworkName(), networkName.GetLength());
-            result.mNetworkName.m8[networkName.GetLength()] = '\0';
+            memcpy(&result.mNetworkName, networkName.GetNetworkName(), networkName.GetNetworkNameLength());
+            result.mNetworkName.m8[networkName.GetNetworkNameLength()] = '\0';
             break;
 
         case MeshCoP::Tlv::kSteeringData:
@@ -3786,7 +3842,7 @@ otError Mle::HandleDiscoveryResponse(const Message &aMessage, const Ip6::Message
             }
 
             didCheckSteeringData         = true;
-            result.mSteeringData.mLength = steeringData.GetLength();
+            result.mSteeringData.mLength = steeringData.GetSteeringDataLength();
             memcpy(result.mSteeringData.m8, steeringData.GetValue(), result.mSteeringData.mLength);
 
             break;
@@ -3934,7 +3990,6 @@ otError Mle::CheckReachability(uint16_t aMeshSource, uint16_t aMeshDest, Ip6::He
 
     messageInfo.GetPeerAddr()                = GetMeshLocal16();
     messageInfo.GetPeerAddr().mFields.m16[7] = HostSwap16(aMeshSource);
-    messageInfo.SetInterfaceId(Get<ThreadNetif>().GetInterfaceId());
 
     Get<Ip6::Icmp>().SendError(Ip6::IcmpHeader::kTypeDstUnreach, Ip6::IcmpHeader::kCodeDstUnreachNoRoute, messageInfo,
                                aIp6Header);
@@ -3960,7 +4015,6 @@ otError Mle::InformPreviousParent(void)
     messageInfo.SetSockAddr(GetMeshLocal64());
     messageInfo.SetPeerAddr(GetMeshLocal16());
     messageInfo.GetPeerAddr().mFields.m16[7] = HostSwap16(mPreviousParentRloc);
-    messageInfo.SetInterfaceId(Get<ThreadNetif>().GetInterfaceId());
 
     SuccessOrExit(error = Get<Ip6::Ip6>().SendDatagram(*message, messageInfo, Ip6::kProtoNone));
 
@@ -4031,7 +4085,7 @@ void Mle::StartParentSearchTimer(void)
 {
     uint32_t interval;
 
-    interval = Random::GetUint32InRange(0, kParentSearchJitterInterval);
+    interval = Random::NonCrypto::GetUint32InRange(0, kParentSearchJitterInterval);
 
     if (mParentSearchIsInBackoff)
     {
@@ -4136,7 +4190,10 @@ const char *Mle::RoleToString(otDeviceRole aRole)
     return roleString;
 }
 
+// LCOV_EXCL_START
+
 #if (OPENTHREAD_CONFIG_LOG_LEVEL >= OT_LOG_LEVEL_NOTE) && (OPENTHREAD_CONFIG_LOG_MLE == 1)
+
 const char *Mle::AttachModeToString(AttachMode aMode)
 {
     const char *str = "unknown";
@@ -4232,6 +4289,8 @@ const char *Mle::ReattachStateToString(ReattachState aState)
 }
 
 #endif // (OPENTHREAD_CONFIG_LOG_LEVEL >= OT_LOG_LEVEL_NOTE) && (OPENTHREAD_CONFIG_LOG_MLE == 1)
+
+// LCOV_EXCL_STOP
 
 void Mle::RegisterParentResponseStatsCallback(otThreadParentResponseCallback aCallback, void *aContext)
 {

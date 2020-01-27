@@ -87,7 +87,8 @@ EXTRA_DIST                                                         = \
     Cert_6_1_03_RouterAttachConnectivity.py                          \
     Cert_6_1_04_REEDAttachConnectivity.py                            \
     Cert_6_1_05_RouterAttachLinkQuality.py                           \
-    Cert_6_1_06_REEDAttachLinkQuality.py                             \
+    Cert_6_1_06_REEDAttachLinkQuality_ED.py                          \
+    Cert_6_1_06_REEDAttachLinkQuality_SED.py                         \
     Cert_6_1_07_EDSynchronization.py                                 \
     Cert_6_2_01_NewPartition.py                                      \
     Cert_6_2_02_NewPartition.py                                      \
@@ -137,7 +138,6 @@ EXTRA_DIST                                                         = \
     network_data.py                                                  \
     network_layer.py                                                 \
     node.py                                                          \
-    node_cli.py                                                      \
     pcap.py                                                          \
     simulator.py                                                     \
     sniffer.py                                                       \
@@ -227,7 +227,8 @@ check_SCRIPTS                                                      = \
     Cert_6_1_03_RouterAttachConnectivity.py                          \
     Cert_6_1_04_REEDAttachConnectivity.py                            \
     Cert_6_1_05_RouterAttachLinkQuality.py                           \
-    Cert_6_1_06_REEDAttachLinkQuality.py                             \
+    Cert_6_1_06_REEDAttachLinkQuality_ED.py                          \
+    Cert_6_1_06_REEDAttachLinkQuality_SED.py                         \
     Cert_6_1_07_EDSynchronization.py                                 \
     Cert_6_2_01_NewPartition.py                                      \
     Cert_6_2_02_NewPartition.py                                      \

@@ -169,6 +169,33 @@ void TestIp6AddressFromString(void)
             OT_ERROR_PARSE
         },
 
+        // Invalid embedded IPv4 address.
+        {
+            ".",
+            {0},
+            OT_ERROR_PARSE
+        },
+
+        // Invalid embedded IPv4 address.
+        {
+            ":.",
+            {0},
+            OT_ERROR_PARSE
+        },
+
+        // Invalid embedded IPv4 address.
+        {
+            "::.",
+            {0},
+            OT_ERROR_PARSE
+        },
+
+        // Invalid embedded IPv4 address.
+        {
+            ":f:0:0:c:0:f:f:.",
+            {0},
+            OT_ERROR_PARSE
+        },
     };
 
     for (uint32_t index = 0; index < OT_ARRAY_LENGTH(testVectors); index++)

@@ -20,7 +20,7 @@ Before you start building the examples, you must download and install the toolch
 
 Download and install the [GNU toolchain for ARM Cortex-M][gnu-toolchain].
 
-[gnu-toolchain]: https://launchpad.net/gcc-arm-embedded
+[gnu-toolchain]: https://developer.arm.com/tools-and-software/open-source-software/developer-tools/gnu-toolchain/gnu-rm
 
 To install the GNU toolchain and its dependencies, run the following commands in Bash:
 
@@ -77,7 +77,7 @@ $ make -f examples/Makefile-nrf52840 USB=1 BOOTLOADER=1
 
 See [nRF52840 Dongle Programming][nrf52840-dongle-programming] for more details about how to use the USB bootloader.
 
-[nrf52840-dongle-programming]: https://www.nordicsemi.com/DocLib/Content/User_Guides/nrf52840_dongle/latest/UG/nrf52840_Dongle/programming
+[nrf52840-dongle-programming]: https://infocenter.nordicsemi.com/topic/ug_nc_programmer/UG/nrf_connect_programmer/ncp_programming_dongle.html
 
 ### Native SPI support
 
@@ -120,6 +120,31 @@ By default, mbedTLS library is built with support for CryptoCell 310 hardware ac
 ```
 $ make -f examples/Makefile-nrf52840 DISABLE_CC310=1
 ```
+
+### Optional mbedTLS threading support
+By default, mbedTLS library is built without support for multiple threads. You can enable this built-in support by building OpenThread with the following parameter:
+
+```
+$ make -f examples/Makefile-nrf52840 MBEDTLS_THREADING=1
+```
+
+The simple mutex definition is used as shown below:
+
+```
+typedef void * mbedtls_threading_mutex_t;
+```
+
+However, you can modify it, by providing a path to a header file with proper definition. To do that, build OpenThread with the following parameter:
+
+```
+$ make -f examples/Makefile-nrf52840 MBEDTLS_THREADING=1 MBEDTLS_THREADING_MUTEX_DEF="path_to_a_header_file_with_mutex_definition.h"
+```
+
+See [mbedTls Thread Safety and Multi Threading][mbedtls-thread-safety-and-multi-threading] for more details.
+
+Note that as a temporary limitation CryptoCell 310 hardware acceleration is disabled when using mbedTLS threading.
+
+[mbedtls-thread-safety-and-multi-threading]: https://tls.mbed.org/kb/development/thread-safety-and-multi-threading
 
 ### IEEE EUI-64 address
 
@@ -176,7 +201,21 @@ To test the example:
 3. Use the following commands to form a network on the first board.
 
    ```bash
-   > panid 0xabcd
+   > dataset init new
+   Done
+   > dataset
+   Active Timestamp: 1
+   Channel: 13
+   Channel Mask: 07fff800
+   Ext PAN ID: d63e8e3e495ebbc3
+   Mesh Local Prefix: fd3d:b50b:f96d:722d/64
+   Master Key: dfd34f0f05cad978ec4e32b0413038ff
+   Network Name: OpenThread-8f28
+   PAN ID: 0x8f28
+   PSKc: c23a76e98f1a6483639b1ac1271e2e27
+   Security Policy: 0, onrcb
+   Done
+   > dataset commit active
    Done
    > ifconfig up
    Done
@@ -188,13 +227,17 @@ To test the example:
 
    ```bash
    > state
-   Leader
+   leader
    ```
 
 4. Use the following commands to attach to the network on the second board.
 
    ```bash
-   > panid 0xabcd
+   > dataset masterkey dfd34f0f05cad978ec4e32b0413038ff
+   Done
+   > dataset panid 0x8f28
+   Done
+   > dataset commit active
    Done
    > ifconfig up
    Done
@@ -206,24 +249,25 @@ To test the example:
 
    ```bash
    > state
-   Child
+   child
    ```
 
 5. List all IPv6 addresses of the first board.
 
    ```bash
    > ipaddr
-   fdde:ad00:beef:0:0:ff:fe00:fc00
-   fdde:ad00:beef:0:0:ff:fe00:9c00
-   fdde:ad00:beef:0:4bcb:73a5:7c28:318e
-   fe80:0:0:0:5c91:c61:b67c:271c
+   fd3d:b50b:f96d:722d:0:ff:fe00:fc00
+   fd3d:b50b:f96d:722d:0:ff:fe00:c00
+   fd3d:b50b:f96d:722d:7a73:bff6:9093:9117
+   fe80:0:0:0:6c41:9001:f3d6:4148
+   Done
    ```
 
 6. Choose one of them and send an ICMPv6 ping from the second board.
 
    ```bash
-   > ping fdde:ad00:beef:0:0:ff:fe00:fc00
-   16 bytes from fdde:ad00:beef:0:0:ff:fe00:fc00: icmp_seq=1 hlim=64 time=8ms
+   > ping fd3d:b50b:f96d:722d:7a73:bff6:9093:9117
+   16 bytes from fd3d:b50b:f96d:722d:558:f56b:d688:799: icmp_seq=1 hlim=64 time=24ms
    ```
 
 For a list of all available commands, visit [OpenThread CLI Reference README.md][CLI].
@@ -361,7 +405,8 @@ The following toolchains have been used for testing and verification:
   - ARM: MDK-ARM version 5.25
 
  The following OpenThread commits have been verified with nRF52840 and nRF52811 examples by Nordic Semiconductor:
-  - `23ff101` - 22.03.2019 (the latest checked)
+  - `2279ef6` - 23.05.2019 (the latest checked)
+  - `23ff101` - 22.03.2019
   - `704511c` - 18.09.2018
   - `ec59d7e` - 06.04.2018
   - `a89eb88` - 16.11.2017
@@ -372,20 +417,21 @@ The following toolchains have been used for testing and verification:
 
 # Nordic Semiconductor's nRF5 SDK for Thread and Zigbee
 
-The [nRF5 Software Development Kit (SDK) for Thread and Zigbee][nRF5-SDK-Thread-Zigbee] helps you when developing Thread products with Nordic Semiconductor's advanced nRF52840 System on Chip (SoC).
+Use [nRF5 Software Development Kit (SDK) for Thread and Zigbee][nRF5-SDK-Thread-Zigbee] when developing Thread products with Nordic Semiconductor's advanced nRF52840 or nRF52811 SoCs.
 
 The <i>nRF5 SDK for Thread and Zigbee</i> includes:
- - a pre-built OpenThread stack for the Nordic nRF52840 SoC with ARM® CryptoCell-310 support,
+ - a pre-built OpenThread stack for the Nordic nRF52840 and nRF52811 SoCs,
+ - support for hardware-accelerated cryptographic operations using ARM® CryptoCell-310,
  - unique Thread/Bluetooth Low Energy dynamic multiprotocol solution which allows for concurrent operation of Thread and Bluetooth Low Energy utilizing OpenThread and SoftDevice (Nordic’s Bluetooth Low Energy stack) with accompanying example applications,
  - Thread/Bluetooth Low Energy switched multiprotocol solution with accompanying example applications,
  - unique support for DFU-over-Thread (Device Firmware Upgrade),
  - examples to demonstrate interactions between nodes performing different Thread roles with the use of OpenThread and CoAP, CoAP Secure or MQTT-SN protocols,
- - support for an OpenThread Network Co-Processor (NCP) using UART, USB or SPI transport protocol,
- - Border Router and cloud connectivity example (e.g. with Google Cloud Platform)
+ - support for OpenThread Network Co-Processor (NCP) and Radio Co-Processor (RCP) using UART, USB or SPI transport protocol,
+ - Border Router and cloud connectivity example (e.g. with Google Cloud Platform),
  - Thread native commissioning with NFC example,
  - example applications demonstrating the use of FreeRTOS with OpenThread,
  - support for IAR, Keil MDK-ARM and SEGGER Embedded Studio (SES) IDEs for OpenThread stack and all example applications,
- - range of PC tools including Thread Topology Monitor and nRF Sniffer for 802.15.4
+ - range of PC tools including Thread Topology Monitor and nRF Sniffer for 802.15.4,
  - software modules inherited from the nRF5 SDK e.g. peripheral drivers, NFC libraries, Bluetooth Low Energy libraries etc.
 
 [nRF5-SDK-Thread-Zigbee]: https://www.nordicsemi.com/Software-and-Tools/Software/nRF5-SDK-for-Thread-and-Zigbee

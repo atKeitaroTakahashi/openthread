@@ -47,12 +47,15 @@ libopenthread_cc1352_a_CPPFLAGS                                                 
 
 PLATFORM_SOURCES                                                                        = \
     alarm.c                                                                               \
+    cc1352_radio.h                                                                        \
     diag.c                                                                                \
+    entropy.c                                                                             \
     flash.c                                                                               \
     logging.c                                                                             \
     misc.c                                                                                \
+    openthread-core-cc1352-config.h                                                       \
+    platform-cc1352.h                                                                     \
     radio.c                                                                               \
-    random.c                                                                              \
     system.c                                                                              \
     uart.c                                                                                \
     crypto/aes_alt.c                                                                      \
@@ -69,13 +72,8 @@ libopenthread_cc1352_a_DEPENDENCIES                                             
     $(top_srcdir)/third_party/ti/devices/cc13x2_cc26x2/driverlib/bin/gcc/driverlib.a      \
     $(NULL)
 
-noinst_HEADERS                                                                          = \
-    platform-cc1352.h                                                                     \
-    $(NULL)
-
 PRETTY_FILES                                                                            = \
     $(PLATFORM_SOURCES)                                                                   \
-    $(noinst_HEADERS)                                                                     \
     $(NULL)
 
 Dash = -

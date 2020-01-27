@@ -7,7 +7,7 @@ This directory contains example platform drivers for [Nordic Semiconductor nRF52
 This SoC is meant to be used in the configuration that involves the Host Processor and the IEEE 802.15.4 radio.
 In this configuration, the full OpenThread stack is running on the Host Processor and the nRF52811 SoC acts as an IEEE 802.15.4 radio.
 The radio is running a minimal OpenThread implementation that allows for communication between the Host Processor and the nRF52811.
-In this architecture, the nRF52811 SoC device is called NCP radio or RCP (Radio Co-Processor).
+In this architecture the nRF52811 SoC device is called RCP (Radio Co-Processor).
 
 The nRF52811 platform is currently under development.
 
@@ -27,7 +27,7 @@ Before you start building the examples, you must download and install the toolch
 
 Download and install the [GNU toolchain for ARM Cortex-M][gnu-toolchain].
 
-[gnu-toolchain]: https://launchpad.net/gcc-arm-embedded
+[gnu-toolchain]: https://developer.arm.com/tools-and-software/open-source-software/developer-tools/gnu-toolchain/gnu-rm
 
 To install the GNU toolchain and its dependencies, run the following commands in Bash:
 
@@ -46,7 +46,7 @@ Install the [nRF5 Command Line Tools][nRF5-Command-Line-Tools] to flash, debug, 
 
 With this platform, you can build:
  - Limited version of CLI example (e.g. without Thread commissioning functionality)
- - NCP radio-only example that consists of two parts:
+ - RCP example that consists of two parts:
     - firmware that is flashed to the nRF52811 SoC
     - host executables to be executed on a POSIX platform in case of the RCP usage
 
@@ -76,7 +76,7 @@ After a successful build, the `elf` files can be found in
 You can convert them to hex using `arm-none-eabi-objcopy`:
 ```bash
 $ arm-none-eabi-objcopy -O ihex ot-cli-mtd ot-cli-mtd.hex
-$ arm-none-eabi-objcopy -O ihex ot-ncp-radio ot-ncp-radio.hex
+$ arm-none-eabi-objcopy -O ihex ot-rcp ot-rcp.hex
 ```
 
 ### Building the firmware with native SPI support
@@ -133,7 +133,7 @@ To test the example:
 
 2. Flash one with the `CLI MTD Example` (ot-cli-mtd.hex, as shown above).
 
-3. Flash `RCP Example` (ot-ncp-radio.hex) to the other board.
+3. Flash `RCP Example` (ot-rcp.hex) to the other board.
 
 4. Connect the RCP to the PC.
 
@@ -150,20 +150,34 @@ To test the example:
 6. Use the following commands to form a network:
 
    ```bash
-    > panid 0xabcd
-    Done
-    > ifconfig up
-    Done
-    > thread start
-    Done
+   > dataset init new
+   Done
+   > dataset
+   Active Timestamp: 1
+   Channel: 13
+   Channel Mask: 07fff800
+   Ext PAN ID: d63e8e3e495ebbc3
+   Mesh Local Prefix: fd3d:b50b:f96d:722d/64
+   Master Key: dfd34f0f05cad978ec4e32b0413038ff
+   Network Name: OpenThread-8f28
+   PAN ID: 0x8f28
+   PSKc: c23a76e98f1a6483639b1ac1271e2e27
+   Security Policy: 0, onrcb
+   Done
+   > dataset commit active
+   Done
+   > ifconfig up
+   Done
+   > thread start
+   Done
    ```
-   
+
    After a couple of seconds the node will become a Leader of the network.
    
-    ```bash
-    > state
-    Leader
-    ```
+   ```bash
+   > state
+   leader
+   ```
 
 7. Open a terminal connection on the second board and attach a node to the network:
 
@@ -189,7 +203,11 @@ To test the example:
 8. Use the following commands to attach to the network on the second board:
 
    ```bash
-   > panid 0xabcd
+   > dataset masterkey dfd34f0f05cad978ec4e32b0413038ff
+   Done
+   > dataset panid 0x8f28
+   Done
+   > dataset commit active
    Done
    > ifconfig up
    Done
@@ -201,24 +219,25 @@ To test the example:
 
    ```bash
    > state
-   Child
+   child
    ```
 
 9. List all IPv6 addresses of the first board.
 
    ```bash
    > ipaddr
-   fdde:ad00:beef:0:0:ff:fe00:fc00
-   fdde:ad00:beef:0:0:ff:fe00:9c00
-   fdde:ad00:beef:0:4bcb:73a5:7c28:318e
-   fe80:0:0:0:5c91:c61:b67c:271c
+   fd3d:b50b:f96d:722d:0:ff:fe00:fc00
+   fd3d:b50b:f96d:722d:0:ff:fe00:c00
+   fd3d:b50b:f96d:722d:7a73:bff6:9093:9117
+   fe80:0:0:0:6c41:9001:f3d6:4148
+   Done
    ```
 
 10. Choose one of them and send an ICMPv6 ping from the second board.
 
     ```bash
-    > ping fdde:ad00:beef:0:0:ff:fe00:fc00
-    16 bytes from fdde:ad00:beef:0:0:ff:fe00:fc00: icmp_seq=1 hlim=64 time=8ms
+    > ping fd3d:b50b:f96d:722d:7a73:bff6:9093:9117
+    16 bytes from fd3d:b50b:f96d:722d:558:f56b:d688:799: icmp_seq=1 hlim=64 time=24ms
     ```
 
 For a list of all available commands, visit [OpenThread CLI Reference README.md][CLI].

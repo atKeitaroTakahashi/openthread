@@ -31,8 +31,6 @@
  *   This file includes definitions for maintaining Thread network topologies.
  */
 
-#define WPP_NAME "topology.tmh"
-
 #include "topology.hpp"
 
 #include "common/code_utils.hpp"
@@ -45,7 +43,7 @@ namespace ot {
 
 void Neighbor::GenerateChallenge(void)
 {
-    Random::FillBuffer(mValidPending.mPending.mChallenge, sizeof(mValidPending.mPending.mChallenge));
+    Random::NonCrypto::FillBuffer(mValidPending.mPending.mChallenge, sizeof(mValidPending.mPending.mChallenge));
 }
 
 bool Child::IsStateValidOrAttaching(void) const
@@ -239,21 +237,7 @@ exit:
 
 void Child::GenerateChallenge(void)
 {
-    Random::FillBuffer(mAttachChallenge, sizeof(mAttachChallenge));
-}
-
-const Mac::Address &Child::GetMacAddress(Mac::Address &aMacAddress) const
-{
-    if (mUseShortAddress)
-    {
-        aMacAddress.SetShort(GetRloc16());
-    }
-    else
-    {
-        aMacAddress.SetExtended(GetExtAddress());
-    }
-
-    return aMacAddress;
+    Random::NonCrypto::FillBuffer(mAttachChallenge, sizeof(mAttachChallenge));
 }
 
 } // namespace ot

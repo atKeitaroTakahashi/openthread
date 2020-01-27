@@ -26,8 +26,6 @@
  *  POSSIBILITY OF SUCH DAMAGE.
  */
 
-#define WPP_NAME "coap.tmh"
-
 #include "coap.hpp"
 
 #include "common/code_utils.hpp"
@@ -59,7 +57,7 @@ CoapBase::CoapBase(Instance &aInstance, Sender aSender)
     , mDefaultHandlerContext(NULL)
     , mSender(aSender)
 {
-    mMessageId = Random::GetUint16();
+    mMessageId = Random::NonCrypto::GetUint16();
 }
 
 void CoapBase::ClearRequestsAndResponses(void)
@@ -241,7 +239,7 @@ otError CoapBase::SendHeaderResponse(Message::Code aCode, const Message &aReques
         break;
     }
 
-    message->SetToken(aRequest.GetToken(), aRequest.GetTokenLength());
+    SuccessOrExit(error = message->SetToken(aRequest.GetToken(), aRequest.GetTokenLength()));
 
     SuccessOrExit(error = SendMessage(*message, aMessageInfo));
 
@@ -303,7 +301,6 @@ void CoapBase::HandleRetransmissionTimer(void)
                 messageInfo.SetPeerAddr(coapMetadata.mDestinationAddress);
                 messageInfo.SetPeerPort(coapMetadata.mDestinationPort);
                 messageInfo.SetSockAddr(coapMetadata.mSourceAddress);
-                messageInfo.SetInterfaceId(Get<ThreadNetif>().GetInterfaceId());
 
                 SendCopy(*message, messageInfo);
             }
@@ -558,12 +555,21 @@ void CoapBase::ProcessReceivedResponse(Message &aMessage, const Ip6::MessageInfo
     case OT_COAP_TYPE_CONFIRMABLE:
         // Send empty ACK if it is a CON message.
         SendAck(aMessage, aMessageInfo);
-
-        // fall through
+        FinalizeCoapTransaction(*request, coapMetadata, &aMessage, &aMessageInfo, OT_ERROR_NONE);
+        break;
 
     case OT_COAP_TYPE_NON_CONFIRMABLE:
         // Separate response.
-        FinalizeCoapTransaction(*request, coapMetadata, &aMessage, &aMessageInfo, OT_ERROR_NONE);
+
+        if (coapMetadata.mDestinationAddress.IsMulticast() && coapMetadata.mResponseHandler != NULL)
+        {
+            // If multicast non-confirmable request, allow multiple responses
+            coapMetadata.mResponseHandler(coapMetadata.mResponseContext, &aMessage, &aMessageInfo, OT_ERROR_NONE);
+        }
+        else
+        {
+            FinalizeCoapTransaction(*request, coapMetadata, &aMessage, &aMessageInfo, OT_ERROR_NONE);
+        }
 
         break;
     }
@@ -652,7 +658,7 @@ exit:
     {
         otLogInfoCoapErr(error, "Failed to process request");
 
-        if (error == OT_ERROR_NOT_FOUND)
+        if (error == OT_ERROR_NOT_FOUND && !aMessageInfo.GetSockAddr().IsMulticast())
         {
             SendNotFound(aMessage, aMessageInfo);
         }
@@ -676,7 +682,7 @@ CoapMetadata::CoapMetadata(bool                    aConfirmable,
     mResponseContext       = aContext;
     mRetransmissionCount   = 0;
     mRetransmissionTimeout = TimerMilli::SecToMsec(kAckTimeout);
-    mRetransmissionTimeout += Random::GetUint32InRange(
+    mRetransmissionTimeout += Random::NonCrypto::GetUint32InRange(
         0, TimerMilli::SecToMsec(kAckTimeout) * kAckRandomFactorNumerator / kAckRandomFactorDenominator -
                TimerMilli::SecToMsec(kAckTimeout) + 1);
 

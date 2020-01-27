@@ -31,8 +31,6 @@
  *   This file implements the subset of IEEE 802.15.4 MAC primitives.
  */
 
-#define WPP_NAME "sub_mac.tmh"
-
 #include "sub_mac.hpp"
 
 #include <stdio.h>
@@ -47,7 +45,7 @@
 namespace ot {
 namespace Mac {
 
-SubMac::SubMac(Instance &aInstance, Callbacks &aCallbacks)
+SubMac::SubMac(Instance &aInstance)
     : InstanceLocator(aInstance)
     , mRadioCaps(otPlatRadioGetCaps(&aInstance))
     , mState(kStateDisabled)
@@ -58,7 +56,7 @@ SubMac::SubMac(Instance &aInstance, Callbacks &aCallbacks)
     , mEnergyScanMaxRssi(kInvalidRssiValue)
     , mEnergyScanEndTime(0)
     , mTransmitFrame(*static_cast<Frame *>(otPlatRadioGetTransmitBuffer(&aInstance)))
-    , mCallbacks(aCallbacks)
+    , mCallbacks(aInstance)
     , mPcapCallback(NULL)
     , mPcapCallbackContext(NULL)
     , mTimer(aInstance, &SubMac::HandleTimer, this)
@@ -246,7 +244,7 @@ void SubMac::StartCsmaBackoff(void)
         backoffExponent = kMaxBE;
     }
 
-    backoff = Random::GetUint32InRange(0, static_cast<uint32_t>(1UL << backoffExponent));
+    backoff = Random::NonCrypto::GetUint32InRange(0, static_cast<uint32_t>(1UL << backoffExponent));
     backoff *= (static_cast<uint32_t>(kUnitBackoffPeriod) * OT_RADIO_SYMBOL_TIME);
 
     if (mRxOnWhenBackoff)
@@ -421,8 +419,7 @@ otError SubMac::EnergyScan(uint8_t aScanChannel, uint16_t aScanDuration)
         SetState(kStateEnergyScan);
         mEnergyScanMaxRssi = kInvalidRssiValue;
         mEnergyScanEndTime = TimerMilli::GetNow() + aScanDuration;
-        mTimer.Start(kEnergyScanRssiSampleInterval);
-        SampleRssi();
+        mTimer.Start(0);
     }
     else
     {
@@ -577,6 +574,8 @@ void SubMac::SetState(State aState)
     }
 }
 
+// LCOV_EXCL_START
+
 const char *SubMac::StateToString(State aState)
 {
     const char *str = "Unknown";
@@ -605,6 +604,8 @@ const char *SubMac::StateToString(State aState)
 
     return str;
 }
+
+// LCOV_EXCL_STOP
 
 //---------------------------------------------------------------------------------------------------------------------
 // otPlatRadio callbacks

@@ -316,6 +316,9 @@ otError Address::FromString(const char *aBuf)
 
             // Do not count bytes of the embedded IPv4 address.
             endp -= kIp4AddressSize;
+
+            VerifyOrExit(dst <= endp, error = OT_ERROR_PARSE);
+
             break;
         }
         else
@@ -327,6 +330,8 @@ otError Address::FromString(const char *aBuf)
         val   = static_cast<uint16_t>((val << 4) | d);
         VerifyOrExit(++count <= 4, error = OT_ERROR_PARSE);
     }
+
+    VerifyOrExit(colonp || dst == endp, error = OT_ERROR_PARSE);
 
     while (colonp && dst > colonp)
     {

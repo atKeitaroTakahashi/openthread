@@ -128,19 +128,14 @@ class DelayedJoinEntHeader
 {
 public:
     /**
-     * Default constructor for the object.
-     *
-     */
-    DelayedJoinEntHeader(void) { memset(this, 0, sizeof(*this)); }
-
-    /**
-     * This constructor initializes the object with specific values.
+     * This method initializes the object with specific values.
      *
      * @param[in]  aSendTime     Time when the message shall be sent.
-     * @param[in]  aDestination  IPv6 address of the message destination.
+     * @param[in]  aMessageInfo  IPv6 address of the message destination.
+     * @param[in]  aKek          A pointer to the KEK.
      *
      */
-    DelayedJoinEntHeader(uint32_t aSendTime, Ip6::MessageInfo &aMessageInfo, const uint8_t *aKek)
+    void Init(uint32_t aSendTime, Ip6::MessageInfo &aMessageInfo, const uint8_t *aKek)
     {
         mSendTime    = aSendTime;
         mMessageInfo = aMessageInfo;
@@ -216,7 +211,7 @@ public:
      * @retval TRUE   If the message shall be sent before the given time.
      * @retval FALSE  Otherwise.
      */
-    bool IsEarlier(uint32_t aTime) { return (static_cast<int32_t>(aTime - mSendTime) > 0); }
+    bool IsEarlier(uint32_t aTime) const { return (static_cast<int32_t>(aTime - mSendTime) > 0); }
 
     /**
      * This method checks if the message shall be sent after the given time.
@@ -226,7 +221,7 @@ public:
      * @retval TRUE   If the message shall be sent after the given time.
      * @retval FALSE  Otherwise.
      */
-    bool IsLater(uint32_t aTime) { return (static_cast<int32_t>(aTime - mSendTime) < 0); }
+    bool IsLater(uint32_t aTime) const { return (static_cast<int32_t>(aTime - mSendTime) < 0); }
 
 private:
     Ip6::MessageInfo mMessageInfo;                    ///< Message info of the message to send.

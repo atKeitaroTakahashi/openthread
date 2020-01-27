@@ -267,7 +267,7 @@ otError CoapSecure::ProcessRequest(int argc, char *argv[])
 
         if (payloadLength > 0)
         {
-            otCoapMessageSetPayloadMarker(message);
+            SuccessOrExit(error = otCoapMessageSetPayloadMarker(message));
         }
     }
 
@@ -278,9 +278,8 @@ otError CoapSecure::ProcessRequest(int argc, char *argv[])
     }
 
     memset(&messageInfo, 0, sizeof(messageInfo));
-    messageInfo.mPeerAddr    = coapDestinationIp;
-    messageInfo.mPeerPort    = OT_DEFAULT_COAP_PORT;
-    messageInfo.mInterfaceId = OT_NETIF_INTERFACE_ID_THREAD;
+    messageInfo.mPeerAddr = coapDestinationIp;
+    messageInfo.mPeerPort = OT_DEFAULT_COAP_PORT;
 
     if ((coapType == OT_COAP_TYPE_CONFIRMABLE) || (coapCode == OT_COAP_CODE_GET))
     {
@@ -311,8 +310,7 @@ otError CoapSecure::ProcessConnect(int argc, char *argv[])
     // Destination IPv6 address
     memset(&sockaddr, 0, sizeof(sockaddr));
     SuccessOrExit(error = otIp6AddressFromString(argv[1], &sockaddr.mAddress));
-    sockaddr.mPort    = OT_DEFAULT_COAP_SECURE_PORT;
-    sockaddr.mScopeId = OT_NETIF_INTERFACE_ID_THREAD;
+    sockaddr.mPort = OT_DEFAULT_COAP_SECURE_PORT;
 
     // check for port specification
     if (argc > 2)
@@ -384,7 +382,7 @@ otError CoapSecure::ProcessX509(int argc, char *argv[])
 exit:
     return error;
 #else
-    return OT_ERROR_DISABLED_FEATURE
+    return OT_ERROR_DISABLED_FEATURE;
 #endif
 }
 
@@ -453,12 +451,9 @@ void CoapSecure::HandleRequest(otMessage *aMessage, const otMessageInfo *aMessag
     otCoapCode responseCode      = OT_COAP_CODE_EMPTY;
     char       responseContent[] = "helloWorld";
 
-    mInterpreter.mServer->OutputFormat(
-        "coaps request from [%x:%x:%x:%x:%x:%x:%x:%x] ", HostSwap16(aMessageInfo->mPeerAddr.mFields.m16[0]),
-        HostSwap16(aMessageInfo->mPeerAddr.mFields.m16[1]), HostSwap16(aMessageInfo->mPeerAddr.mFields.m16[2]),
-        HostSwap16(aMessageInfo->mPeerAddr.mFields.m16[3]), HostSwap16(aMessageInfo->mPeerAddr.mFields.m16[4]),
-        HostSwap16(aMessageInfo->mPeerAddr.mFields.m16[5]), HostSwap16(aMessageInfo->mPeerAddr.mFields.m16[6]),
-        HostSwap16(aMessageInfo->mPeerAddr.mFields.m16[7]));
+    mInterpreter.mServer->OutputFormat("coaps request from ");
+    mInterpreter.OutputIp6Address(aMessageInfo->mPeerAddr);
+    mInterpreter.mServer->OutputFormat(" ");
 
     switch (otCoapMessageGetCode(aMessage))
     {
@@ -502,11 +497,12 @@ void CoapSecure::HandleRequest(otMessage *aMessage, const otMessageInfo *aMessag
 
         otCoapMessageInit(responseMessage, OT_COAP_TYPE_ACKNOWLEDGMENT, responseCode);
         otCoapMessageSetMessageId(responseMessage, otCoapMessageGetMessageId(aMessage));
-        otCoapMessageSetToken(responseMessage, otCoapMessageGetToken(aMessage), otCoapMessageGetTokenLength(aMessage));
+        SuccessOrExit(error = otCoapMessageSetToken(responseMessage, otCoapMessageGetToken(aMessage),
+                                                    otCoapMessageGetTokenLength(aMessage)));
 
         if (otCoapMessageGetCode(aMessage) == OT_COAP_CODE_GET)
         {
-            otCoapMessageSetPayloadMarker(responseMessage);
+            SuccessOrExit(error = otCoapMessageSetPayloadMarker(responseMessage));
         }
 
         if (otCoapMessageGetCode(aMessage) == OT_COAP_CODE_GET)
@@ -550,12 +546,8 @@ void CoapSecure::HandleResponse(otMessage *aMessage, const otMessageInfo *aMessa
     }
     else
     {
-        mInterpreter.mServer->OutputFormat(
-            "coaps response from [%x:%x:%x:%x:%x:%x:%x:%x]", HostSwap16(aMessageInfo->mPeerAddr.mFields.m16[0]),
-            HostSwap16(aMessageInfo->mPeerAddr.mFields.m16[1]), HostSwap16(aMessageInfo->mPeerAddr.mFields.m16[2]),
-            HostSwap16(aMessageInfo->mPeerAddr.mFields.m16[3]), HostSwap16(aMessageInfo->mPeerAddr.mFields.m16[4]),
-            HostSwap16(aMessageInfo->mPeerAddr.mFields.m16[5]), HostSwap16(aMessageInfo->mPeerAddr.mFields.m16[6]),
-            HostSwap16(aMessageInfo->mPeerAddr.mFields.m16[7]));
+        mInterpreter.mServer->OutputFormat("coaps response from ");
+        mInterpreter.OutputIp6Address(aMessageInfo->mPeerAddr);
 
         PrintPayload(aMessage);
     }
@@ -580,7 +572,8 @@ void CoapSecure::DefaultHandler(otMessage *aMessage, const otMessageInfo *aMessa
 
         otCoapMessageInit(responseMessage, OT_COAP_TYPE_NON_CONFIRMABLE, OT_COAP_CODE_NOT_FOUND);
         otCoapMessageSetMessageId(responseMessage, otCoapMessageGetMessageId(aMessage));
-        otCoapMessageSetToken(responseMessage, otCoapMessageGetToken(aMessage), otCoapMessageGetTokenLength(aMessage));
+        SuccessOrExit(error = otCoapMessageSetToken(responseMessage, otCoapMessageGetToken(aMessage),
+                                                    otCoapMessageGetTokenLength(aMessage)));
 
         SuccessOrExit(error = otCoapSecureSendResponse(mInterpreter.mInstance, responseMessage, aMessageInfo));
     }

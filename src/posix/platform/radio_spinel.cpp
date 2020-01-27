@@ -231,7 +231,7 @@ otError RadioSpinel::CheckSpinelVersion(void)
     {
         otLogCritPlat("Spinel version mismatch - PosixApp:%d.%d, RCP:%d.%d", SPINEL_PROTOCOL_VERSION_THREAD_MAJOR,
                       SPINEL_PROTOCOL_VERSION_THREAD_MINOR, versionMajor, versionMinor);
-        exit(OT_EXIT_RADIO_SPINEL_INCOMPATIBLE);
+        DieNow(OT_EXIT_RADIO_SPINEL_INCOMPATIBLE);
     }
 
 exit:
@@ -273,7 +273,7 @@ otError RadioSpinel::CheckCapabilities(void)
     if (!supportsRawRadio)
     {
         otLogCritPlat("RCP capability list does not include support for radio/raw mode");
-        exit(OT_EXIT_RADIO_SPINEL_INCOMPATIBLE);
+        DieNow(OT_EXIT_RADIO_SPINEL_INCOMPATIBLE);
     }
 
 exit:
@@ -298,7 +298,7 @@ otError RadioSpinel::CheckRadioCapabilities(void)
                       (mRadioCaps & OT_RADIO_CAPS_TRANSMIT_RETRIES) ? "yes" : "no",
                       (mRadioCaps & OT_RADIO_CAPS_CSMA_BACKOFF) ? "yes" : "no");
 
-        exit(OT_EXIT_RADIO_SPINEL_INCOMPATIBLE);
+        DieNow(OT_EXIT_RADIO_SPINEL_INCOMPATIBLE);
     }
 
 exit:
@@ -658,13 +658,15 @@ exit:
 
 void RadioSpinel::ProcessFrameQueue(void)
 {
-    uint8_t *frame;
+    uint8_t *frame = NULL;
     uint16_t length;
 
-    while (mHdlcInterface.GetRxFrameBuffer().ReadSavedFrame(frame, length) == OT_ERROR_NONE)
+    while (mHdlcInterface.GetRxFrameBuffer().GetNextSavedFrame(frame, length) == OT_ERROR_NONE)
     {
         HandleNotification(frame, length);
     }
+
+    mHdlcInterface.GetRxFrameBuffer().ClearSavedFrames();
 }
 
 void RadioSpinel::RadioReceive(void)
@@ -757,8 +759,6 @@ void RadioSpinel::Process(const fd_set &aReadFdSet, const fd_set &aWriteFdSet)
         ProcessFrameQueue();
     }
 
-    mHdlcInterface.GetRxFrameBuffer().ClearReadFrames();
-
     if (mState == kStateTransmitDone)
     {
         mState        = kStateReceive;
@@ -778,8 +778,7 @@ void RadioSpinel::Process(const fd_set &aReadFdSet, const fd_set &aWriteFdSet)
     }
     else if (mState == kStateTransmitting && otSysGetTime() >= mTxRadioEndUs)
     {
-        otLogCritPlat("radio tx timeout, exit");
-        exit(OT_EXIT_FAILURE);
+        DieNowWithMessage("radio tx timeout", OT_EXIT_FAILURE);
     }
 
     if (FD_ISSET(mHdlcInterface.GetSocket(), &aWriteFdSet))
@@ -1027,13 +1026,12 @@ otError RadioSpinel::WaitResponse(void)
             }
             else if (FD_ISSET(sockFd, &error_fds))
             {
-                fprintf(stderr, "NCP error\r\n");
-                exit(OT_EXIT_FAILURE);
+                DieNowWithMessage("NCP error", OT_EXIT_FAILURE);
             }
             else
             {
                 assert(false);
-                exit(OT_EXIT_FAILURE);
+                DieNow(OT_EXIT_FAILURE);
             }
         }
         else if (rval == 0)
@@ -1044,8 +1042,7 @@ otError RadioSpinel::WaitResponse(void)
         }
         else if (errno != EINTR)
         {
-            perror("wait response");
-            exit(OT_EXIT_FAILURE);
+            DieNowWithMessage("wait response", OT_EXIT_FAILURE);
         }
 #endif // OPENTHREAD_POSIX_VIRTUAL_TIME
 
@@ -1650,8 +1647,6 @@ void ot::PosixApp::RadioSpinel::Process(const Event &aEvent)
         mHdlcInterface.ProcessReadData(aEvent.mData, aEvent.mDataLength);
         ProcessFrameQueue();
     }
-
-    mHdlcInterface.GetRxFrameBuffer().ClearReadFrames();
 
     if (mState == kStateTransmitDone)
     {

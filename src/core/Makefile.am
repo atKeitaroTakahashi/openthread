@@ -113,6 +113,7 @@ SOURCES_COMMON                      = \
     api/dataset_api.cpp               \
     api/dataset_ftd_api.cpp           \
     api/dns_api.cpp                   \
+    api/entropy_api.cpp               \
     api/icmp6_api.cpp                 \
     api/instance_api.cpp              \
     api/ip6_api.cpp                   \
@@ -124,6 +125,8 @@ SOURCES_COMMON                      = \
     api/message_api.cpp               \
     api/netdata_api.cpp               \
     api/network_time_api.cpp          \
+    api/random_crypto_api.cpp         \
+    api/random_noncrypto_api.cpp      \
     api/server_api.cpp                \
     api/sntp_api.cpp                  \
     api/tasklet_api.cpp               \
@@ -138,6 +141,7 @@ SOURCES_COMMON                      = \
     common/logging.cpp                \
     common/message.cpp                \
     common/notifier.cpp               \
+    common/random_manager.cpp         \
     common/settings.cpp               \
     common/string.cpp                 \
     common/tasklet.cpp                \
@@ -152,6 +156,8 @@ SOURCES_COMMON                      = \
     crypto/pbkdf2_cmac.cpp            \
     crypto/sha256.cpp                 \
     mac/channel_mask.cpp              \
+    mac/data_poll_handler.cpp         \
+    mac/data_poll_sender.cpp          \
     mac/link_raw.cpp                  \
     mac/mac.cpp                       \
     mac/mac_filter.cpp                \
@@ -183,7 +189,6 @@ SOURCES_COMMON                      = \
     net/ip6_filter.cpp                \
     net/ip6_headers.cpp               \
     net/ip6_mpl.cpp                   \
-    net/ip6_routes.cpp                \
     net/netif.cpp                     \
     net/sntp_client.cpp               \
     net/udp6.cpp                      \
@@ -192,8 +197,8 @@ SOURCES_COMMON                      = \
     thread/announce_begin_server.cpp  \
     thread/announce_sender.cpp        \
     thread/child_table.cpp            \
-    thread/data_poll_manager.cpp      \
     thread/energy_scan_server.cpp     \
+    thread/indirect_sender.cpp        \
     thread/key_manager.cpp            \
     thread/link_quality.cpp           \
     thread/lowpan.cpp                 \
@@ -233,11 +238,11 @@ libopenthread_radio_a_SOURCES       = \
     api/instance_api.cpp              \
     api/link_raw_api.cpp              \
     api/logging_api.cpp               \
-    api/message_api.cpp               \
+    api/random_noncrypto_api.cpp      \
     api/tasklet_api.cpp               \
     common/instance.cpp               \
     common/logging.cpp                \
-    common/message.cpp                \
+    common/random_manager.cpp         \
     common/string.cpp                 \
     common/tasklet.cpp                \
     common/timer.cpp                  \
@@ -303,6 +308,7 @@ HEADERS_COMMON                      = \
     common/new.hpp                    \
     common/notifier.hpp               \
     common/random.hpp                 \
+    common/random_manager.hpp         \
     common/settings.hpp               \
     common/string.hpp                 \
     common/tasklet.hpp                \
@@ -317,6 +323,8 @@ HEADERS_COMMON                      = \
     crypto/pbkdf2_cmac.h              \
     crypto/sha256.hpp                 \
     mac/channel_mask.hpp              \
+    mac/data_poll_handler.hpp         \
+    mac/data_poll_sender.hpp          \
     mac/link_raw.hpp                  \
     mac/mac.hpp                       \
     mac/mac_filter.hpp                \
@@ -348,7 +356,6 @@ HEADERS_COMMON                      = \
     net/ip6_filter.hpp                \
     net/ip6_headers.hpp               \
     net/ip6_mpl.hpp                   \
-    net/ip6_routes.hpp                \
     net/netif.hpp                     \
     net/sntp_client.hpp               \
     net/socket.hpp                    \
@@ -359,8 +366,8 @@ HEADERS_COMMON                      = \
     thread/announce_begin_server.hpp  \
     thread/announce_sender.hpp        \
     thread/child_table.hpp            \
-    thread/data_poll_manager.hpp      \
     thread/energy_scan_server.hpp     \
+    thread/indirect_sender.hpp        \
     thread/key_manager.hpp            \
     thread/link_quality.hpp           \
     thread/lowpan.hpp                 \

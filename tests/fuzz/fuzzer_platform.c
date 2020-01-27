@@ -34,7 +34,6 @@
 #include <openthread/platform/logging.h>
 #include <openthread/platform/misc.h>
 #include <openthread/platform/radio.h>
-#include <openthread/platform/random.h>
 #include <openthread/platform/settings.h>
 #include <openthread/platform/uart.h>
 
@@ -339,33 +338,11 @@ int8_t otPlatRadioGetReceiveSensitivity(otInstance *aInstance)
     return 0;
 }
 
-uint32_t otPlatRandomGet(void)
-{
-    uint32_t mlcg, p, q;
-    uint64_t tmpstate;
-
-    tmpstate = (uint64_t)33614 * (uint64_t)sRandomState;
-    q        = tmpstate & 0xffffffff;
-    q        = q >> 1;
-    p        = tmpstate >> 32;
-    mlcg     = p + q;
-
-    if (mlcg & 0x80000000)
-    {
-        mlcg &= 0x7fffffff;
-        mlcg++;
-    }
-
-    sRandomState = mlcg;
-
-    return mlcg;
-}
-
-otError otPlatRandomGetTrue(uint8_t *aOutput, uint16_t aOutputLength)
+otError otPlatEntropyGet(uint8_t *aOutput, uint16_t aOutputLength)
 {
     for (uint16_t length = 0; length < aOutputLength; length++)
     {
-        aOutput[length] = (uint8_t)otPlatRandomGet();
+        aOutput[length] = (uint8_t)rand();
     }
 
     return OT_ERROR_NONE;
@@ -376,22 +353,9 @@ void otPlatSettingsInit(otInstance *aInstance)
     OT_UNUSED_VARIABLE(aInstance);
 }
 
-otError otPlatSettingsBeginChange(otInstance *aInstance)
+void otPlatSettingsDeinit(otInstance *aInstance)
 {
     OT_UNUSED_VARIABLE(aInstance);
-    return OT_ERROR_NONE;
-}
-
-otError otPlatSettingsCommitChange(otInstance *aInstance)
-{
-    OT_UNUSED_VARIABLE(aInstance);
-    return OT_ERROR_NONE;
-}
-
-otError otPlatSettingsAbandonChange(otInstance *aInstance)
-{
-    OT_UNUSED_VARIABLE(aInstance);
-    return OT_ERROR_NONE;
 }
 
 otError otPlatSettingsGet(otInstance *aInstance, uint16_t aKey, int aIndex, uint8_t *aValue, uint16_t *aValueLength)

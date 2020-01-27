@@ -26,8 +26,6 @@
  *  POSSIBILITY OF SUCH DAMAGE.
  */
 
-#define WPP_NAME "router_table.tmh"
-
 #include "router_table.hpp"
 
 #if OPENTHREAD_FTD
@@ -64,7 +62,7 @@ void RouterTable::Iterator::Advance(void)
 RouterTable::RouterTable(Instance &aInstance)
     : InstanceLocator(aInstance)
     , mRouterIdSequenceLastUpdated(0)
-    , mRouterIdSequence(Random::GetUint8())
+    , mRouterIdSequence(Random::NonCrypto::GetUint8())
     , mActiveRouterCount(0)
 {
     Clear();
@@ -101,7 +99,14 @@ void RouterTable::ClearNeighbors(void)
 {
     for (uint8_t index = 0; index < Mle::kMaxRouters; index++)
     {
-        mRouters[index].SetState(Neighbor::kStateInvalid);
+        Router &router = mRouters[index];
+
+        if (router.GetState() == Neighbor::kStateValid)
+        {
+            Get<Mle::MleRouter>().Signal(OT_NEIGHBOR_TABLE_EVENT_ROUTER_REMOVED, router);
+        }
+
+        router.SetState(Neighbor::kStateInvalid);
     }
 }
 
@@ -212,7 +217,7 @@ Router *RouterTable::Allocate(void)
     VerifyOrExit(mActiveRouterCount < Mle::kMaxRouters && numAvailable > 0);
 
     // choose available router id at random
-    freeBit = Random::GetUint8InRange(0, numAvailable);
+    freeBit = Random::NonCrypto::GetUint8InRange(0, numAvailable);
 
     // allocate router
     for (uint8_t routerId = 0; routerId <= Mle::kMaxRouterId; routerId++)

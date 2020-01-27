@@ -72,15 +72,16 @@ COMMONCPPFLAGS                                                                  
 
 PLATFORM_COMMON_SOURCES                                                                                    = \
     alarm.c                                                                                                  \
+    entropy.c                                                                                                \
     fem.c                                                                                                    \
     flash.c                                                                                                  \
     logging.c                                                                                                \
     misc.c                                                                                                   \
+    openthread-core-nrf52811-config.h                                                                        \
     platform-config.h                                                                                        \
     platform-fem.h                                                                                           \
     platform-nrf5.h                                                                                          \
     radio.c                                                                                                  \
-    random.c                                                                                                 \
     temp.c                                                                                                   \
     spi-slave.c                                                                                              \
     system.c                                                                                                 \
